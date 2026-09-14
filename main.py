@@ -1,7 +1,7 @@
-# 获取命令行参数和退出程序
 import sys
 import re
-import jieba
+from difflib import SequenceMatcher
+
 def read_file(path):
     """
     读取文件内容
@@ -9,43 +9,63 @@ def read_file(path):
     # 以只读模式打开文件，编码使用utf-8
     with open(path, 'r', encoding='utf-8') as f:
         return f.read()
+
 def preprocess(text):
     """
     去除标点符号和空白字符
     """
-    # 去除标点
+    # 去掉标点
     text = re.sub(r'[^\w\s]', '', text)
-    # 去除空白
+    # 去掉空白
     text = re.sub(r'\s+', '', text)
     return text
-def tokenize(text):
+
+def calculate_similarity(orig, orig_add):
     """
-    使用jieba分词
+    基于LCS计算相似度
+    相似度 = LCS 长度 / 较长序列长度
     """
-    return list(jieba.cut(text))
+    # 预处理，保留纯文字
+    orig_clean = preprocess(orig)
+    orig_add_clean = preprocess(orig_add)
+
+    # 有空时返回0
+    if not orig_clean or not orig_add_clean:
+        return 0.0
+
+    # 按字符比较
+    matcher = SequenceMatcher(None, orig_clean, orig_add_clean)
+    # 返回所有匹配块
+    lcs_length = sum(block.size for block in matcher.get_matching_blocks())
+
+    # 除以较长序列的长度
+    max_length = max(len(orig_clean), len(orig_add_clean))
+    return lcs_length / max_length
+
 def main():
-    """
-    解析命令行参数，读取原文和抄袭版文件，并打印内容。
-    """
+    # 检查命令行参数数量
     if len(sys.argv) != 4:
-        # 如果命令行参数数量不为4，则提示正确用法
         print("用法：python main.py <原文文件> <抄袭版文件> <答案文件>")
         sys.exit(1)
 
-    # 从命令行参数中取出原文文件和抄袭版文件路径
+    # 从命令行参数取出三个路径
     orig_path = sys.argv[1]
     orig_add_path = sys.argv[2]
+    ans_path = sys.argv[3]
 
-    # 读取文件内容，并保存
+    # 读取两个文件
     orig = read_file(orig_path)
     orig_add = read_file(orig_add_path)
 
-    # 预处理，分词
-    orig_words = tokenize(preprocess(orig))
-    orig_add_words = tokenize(preprocess(orig_add))
-    
-    # 打印分词结果
-    print("原文分词：", orig_words)
-    print("抄袭版分词：", orig_add_words)
+    # 计算相似度
+    similarity = calculate_similarity(orig, orig_add)
+
+    # 写入答案文件，保留两位小数
+    with open(ans_path, 'w', encoding='utf-8') as f:
+        f.write(f"{similarity:.2f}")
+
+    # 打印
+    print(f"重复率：{similarity:.2f}")
+
 if __name__ == '__main__':
     main()
